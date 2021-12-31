@@ -120,10 +120,10 @@ function productTemplate(_post) {
     <div class="card mb-4">
       <div class="card-body text-left p-4 position-relative">
         <h2 class="card-title fs-4 fw-bold mt-2">${_post.title}</h2>
-        <p class="card-text mb-4" style="min-height: 82px">
+        <p class="card-text">
           ${_post.description}             
         </p>
-        <div class="d-grid gap-2">
+        <div class="d-grid gap-1">
           <a class="btn btn-lg btn-outline-dark fs-6 p-3" data-bs-toggle="modal" data-bs-target="#hireModal" id=${
             _post.index
           }>
