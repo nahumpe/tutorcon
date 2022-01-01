@@ -143,6 +143,14 @@ contract TutorCon {
         hiresInfoLenght++;
     }
 
+    function getHireIndex(address _profile)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        return (hireIndex[_profile]);
+    }
+
     function getTutorsLength() public view returns (uint256) {
         return (tutorsLength);
     }

@@ -5,15 +5,18 @@ import marketplaceAbi from "../contract/marketplace.abi.json"
 import erc20Abi from "../contract/erc20.abi.json"
 
 const ERC20_DECIMALS = 18
-const MPContractAddress = "0x6c3b08c2F696F9954670Ec0350c83EB4D3d98E10"
+const MPContractAddress = "0x31A8F10C6465F5A2e1534485CbfaB4eD044ff917"
 const cUSDContractAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
 
 let kit
 let contract
 let posts = []
 let tutors = []
+let hires = []
 let user
 let hireIn
+
+const subjects = ["Math", "Science", "History", "Language", "Physics"]
 
 const connectCeloWallet = async function () {
   if (window.celo) {
@@ -90,8 +93,6 @@ const getData = async function() {
   document.getElementById("registerBtn").style.display = checkRegistered() ? "none" : "initial"
   document.getElementById("postBtn").style.display = checkRegistered() ? "initial" : "none"
 
-  console.log(posts);
-  console.log(tutors);
   renderPosts()
 }
 
@@ -120,14 +121,17 @@ function productTemplate(_post) {
     <div class="card mb-4">
       <div class="card-body text-left p-4 position-relative">
         <h2 class="card-title fs-4 fw-bold mt-2">${_post.title}</h2>
+        <p class="text-muted">
+          ${subjects[_post.subject]}             
+        </p>
         <p class="card-text">
           ${_post.description}             
         </p>
         <div class="d-grid gap-1">
-          <a class="btn btn-lg btn-outline-dark fs-6 p-3" data-bs-toggle="modal" data-bs-target="#hireModal" id=${
+          <a class="btn btn-lg btn-outline-dark fs-6 p-3 setHire" data-bs-toggle="modal" data-bs-target="#hireModal" id=${
             _post.index
           }>
-            Buy for ${_post.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD
+            Hire for ${_post.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD / h
           </a>
         </div>
       </div>
@@ -210,28 +214,82 @@ document.querySelector("#newTutorBtn").addEventListener("click", async (e) => {
 })
 
 document.querySelector("#marketplace").addEventListener("click", async (e) => {
-  if (e.target.className.includes("buyBtn")) {
+  if (e.target.className.includes("setHire")) {
     const index = e.target.id
     hireIn = index
   }
 })  
 
 document.querySelector("#hireBtn").addEventListener("click", async (e) => {
+  const hours = document.getElementById("hoursInput").value
+
+  const params = [
+    parseInt(hireIn),
+    parseInt(hours)
+  ]
+
   notification("⌛ Waiting for payment approval...")
-    try {
-      await approve(posts[hireIn].price)
-    } catch (error) {
-      notification(`⚠️ ${error}.`)
-    }
-    notification(`⌛ Awaiting payment for "${posts[hireIn].title}"...`)
-    try {
-      const result = await contract.methods
-        .hireTutor(hireIn)
-        .send({ from: kit.defaultAccount })
-      notification(`🎉 You successfully bought "${posts[hireIn].title}".`)
-      getData()
-      getBalance()
-    } catch (error) {
-      notification(`⚠️ ${error}.`)
-    }
+  try {
+    await approve(posts[hireIn].price.multipliedBy(hours))
+  } catch (error) {
+    notification(`⚠️ ${error}.`)
+  }
+  notification(`⌛ Awaiting payment for "${posts[hireIn].title}"...`)
+  try {
+    const result = await contract.methods
+      .hireTutor(...params)
+      .send({ from: kit.defaultAccount })
+    notification(`🎉 You successfully bought "${posts[hireIn].title}".`)
+    getData()
+    getBalance()
+  } catch (error) {
+    notification(`⚠️ ${error}.`)
+  }
 })
+
+document.querySelector("#viewHires").addEventListener("click", async (e) => {
+  document.getElementById("viewHires").style.display = "none"
+  document.getElementById("viewAll").style.display = "initial"
+
+  const _hires = await contract.methods.getHireIndex(kit.defaultAccount).call()
+  hires = []
+  for (let i of _hires){
+    const hire = await contract.methods.getHireInfo(i).call()
+    hires.push(hire)
+  }
+  renderHires()
+})
+
+document.querySelector("#viewAll").addEventListener("click", async (e) => {
+  document.getElementById("viewHires").style.display = "initial"
+  document.getElementById("viewAll").style.display = "none"
+
+  getData()
+  
+})
+
+function renderHires() {
+  document.getElementById("marketplace").innerHTML = ""
+  for(let j of hires){
+    const newDiv = document.createElement("div")
+    newDiv.className = "col-md-4"
+    newDiv.innerHTML = hiresTemplate(posts[j[0]], j[1])
+    document.getElementById("marketplace").appendChild(newDiv)
+  }
+}
+
+function hiresTemplate(_hirePost, h) {
+  return `
+    <div class="card mb-4">
+      <div class="card-body text-left p-4 position-relative">
+        <h2 class="card-title fs-4 fw-bold mt-2">${_hirePost.title}</h2>
+        <p class="text-muted">
+          ${subjects[_hirePost.subject]}             
+        </p>
+        <p class="card-text">
+          ${h} Hours      
+        </p>
+      </div>
+    </div>
+  `
+}
