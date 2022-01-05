@@ -3,10 +3,7 @@ import { newKitFromWeb3 } from "@celo/contractkit"
 import BigNumber from "bignumber.js"
 import marketplaceAbi from "../contract/marketplace.abi.json"
 import erc20Abi from "../contract/erc20.abi.json"
-
-const ERC20_DECIMALS = 18
-const MPContractAddress = "0x31A8F10C6465F5A2e1534485CbfaB4eD044ff917"
-const cUSDContractAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
+import { ERC20_DECIMALS, MPContractAddress, cUSDContractAddress, subjects } from "./constants"
 
 let kit
 let contract
@@ -15,8 +12,6 @@ let tutors = []
 let hires = []
 let user
 let hireIn
-
-const subjects = ["Math", "Science", "History", "Language", "Physics"]
 
 const connectCeloWallet = async function () {
   if (window.celo) {
@@ -55,7 +50,7 @@ const getBalance = async function () {
   document.querySelector("#balance").textContent = cUSDBalance
 }
 
-const getData = async function() {
+const getData = async function () {
   const _postsLength = await contract.methods.getPostsLength().call()
   const _posts = []
   for (let i = 0; i < _postsLength; i++) {
@@ -67,11 +62,14 @@ const getData = async function() {
         title: p[1],
         description: p[2],
         subject: p[3],
-        price: new BigNumber(p[4])
+        subject2: p[4],
+        subject3: p[5],
+        price: new BigNumber(p[6])
       })
     })
     _posts.push(_post)
   }
+
   posts = await Promise.all(_posts)
 
   const _tutorsLength = await contract.methods.getTutorsLength().call()
@@ -88,6 +86,7 @@ const getData = async function() {
     })
     _tutors.push(_tutor)
   }
+
   tutors = await Promise.all(_tutors)
 
   document.getElementById("registerBtn").style.display = checkRegistered() ? "none" : "initial"
@@ -96,9 +95,9 @@ const getData = async function() {
   renderPosts()
 }
 
-function checkRegistered(){
-  for(let i of tutors){
-    if(i.profile == kit.defaultAccount){
+function checkRegistered() {
+  for (let i of tutors) {
+    if (i.profile == kit.defaultAccount) {
       user = i
       return true;
     }
@@ -116,21 +115,35 @@ function renderPosts() {
   })
 }
 
+// added _tutor
 function productTemplate(_post) {
+  let _tutor = "";
+  tutors.forEach(tutor => {
+    if (parseInt(_post.tutorIndex) === tutor.index) {
+      _tutor = tutor;
+    }
+  })
+
   return `
     <div class="card mb-4">
       <div class="card-body text-left p-4 position-relative">
         <h2 class="card-title fs-4 fw-bold mt-2">${_post.title}</h2>
         <p class="text-muted">
-          ${subjects[_post.subject]}             
+          <small>
+            <a href="https://alfajores-blockscout.celo-testnet.org/address/${_tutor.profile}/transactions">
+            ${_tutor.name}
+            </a>
+          </small>
+          <br/>
+          offers
+          <br/>
+          <small>${_post.subject}, ${_post.subject2}, ${_post.subject3}</small>
         </p>
         <p class="card-text">
           ${_post.description}             
         </p>
         <div class="d-grid gap-1">
-          <a class="btn btn-lg btn-outline-dark fs-6 p-3 setHire" data-bs-toggle="modal" data-bs-target="#hireModal" id=${
-            _post.index
-          }>
+          <a class="btn btn-lg btn-outline-dark fs-6 p-3 setHire" data-bs-toggle="modal" data-bs-target="#hireModal" id=${_post.index}>
             Hire for ${_post.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD / h
           </a>
         </div>
@@ -139,24 +152,7 @@ function productTemplate(_post) {
   `
 }
 
-function identiconTemplate(_address) {
-  const icon = blockies
-    .create({
-      seed: _address,
-      size: 8,
-      scale: 16,
-    })
-    .toDataURL()
-
-  return `
-  <div class="rounded-circle overflow-hidden d-inline-block border border-white border-2 shadow-sm m-0">
-    <a href="https://alfajores-blockscout.celo-testnet.org/address/${_address}/transactions"
-        target="_blank">
-        <img src="${icon}" width="48" alt="${_address}">
-    </a>
-  </div>
-  `
-}
+// i removed the identiconTemplate() function as it wasn't in use case
 
 function notification(_text) {
   document.querySelector(".alert").style.display = "block"
@@ -180,13 +176,14 @@ document
   .addEventListener("click", async (e) => {
     const params = [
       user.index,
-      document.getElementById("newSerTitle").value,
-      document.getElementById("newSerDescription").value,
-      document.getElementById("selectSubject").value,
-      new BigNumber(document.getElementById("newPrice").value)
-      .shiftedBy(ERC20_DECIMALS)
-      .toString()
+      document.getElementById("newSerTitle").value.toString(),
+      document.getElementById("newSerDescription").value.toString(),
+      document.getElementById("selectSubject").value.toString(),
+      document.getElementById("selectSubject2").value.toString(),
+      document.getElementById("selectSubject3").value.toString(),
+      new BigNumber(document.getElementById("newPrice").value).shiftedBy(ERC20_DECIMALS).toString()
     ]
+
     notification(`⌛ Adding "${params[1]}"...`)
     try {
       const result = await contract.methods
@@ -218,7 +215,7 @@ document.querySelector("#marketplace").addEventListener("click", async (e) => {
     const index = e.target.id
     hireIn = index
   }
-})  
+})
 
 document.querySelector("#hireBtn").addEventListener("click", async (e) => {
   const hours = document.getElementById("hoursInput").value
@@ -228,22 +225,27 @@ document.querySelector("#hireBtn").addEventListener("click", async (e) => {
     parseInt(hours)
   ]
 
-  notification("⌛ Waiting for payment approval...")
-  try {
-    await approve(posts[hireIn].price.multipliedBy(hours))
-  } catch (error) {
-    notification(`⚠️ ${error}.`)
-  }
-  notification(`⌛ Awaiting payment for "${posts[hireIn].title}"...`)
-  try {
-    const result = await contract.methods
-      .hireTutor(...params)
-      .send({ from: kit.defaultAccount })
-    notification(`🎉 You successfully bought "${posts[hireIn].title}".`)
-    getData()
-    getBalance()
-  } catch (error) {
-    notification(`⚠️ ${error}.`)
+  // check if tutor is owner
+  if (tutors[posts[hireIn].tutorIndex].profile == kit.defaultAccount) {
+    notification(`⚠️ You can't buy "${posts[hireIn].title}" as you are the tutor!`)
+  } else {
+    notification("⌛ Waiting for payment approval...")
+    try {
+      await approve(posts[hireIn].price.multipliedBy(hours))
+    } catch (error) {
+      notification(`⚠️ ${error}.`)
+    }
+    notification(`⌛ Awaiting payment for "${posts[hireIn].title}"...`)
+    try {
+      const result = await contract.methods
+        .hireTutor(...params)
+        .send({ from: kit.defaultAccount })
+      notification(`🎉 You successfully bought "${posts[hireIn].title}".`)
+      getData()
+      getBalance()
+    } catch (error) {
+      notification(`⚠️ ${error}.`)
+    }
   }
 })
 
@@ -253,7 +255,7 @@ document.querySelector("#viewHires").addEventListener("click", async (e) => {
 
   const _hires = await contract.methods.getHireIndex(kit.defaultAccount).call()
   hires = []
-  for (let i of _hires){
+  for (let i of _hires) {
     const hire = await contract.methods.getHireInfo(i).call()
     hires.push(hire)
   }
@@ -265,12 +267,12 @@ document.querySelector("#viewAll").addEventListener("click", async (e) => {
   document.getElementById("viewAll").style.display = "none"
 
   getData()
-  
+
 })
 
 function renderHires() {
   document.getElementById("marketplace").innerHTML = ""
-  for(let j of hires){
+  for (let j of hires) {
     const newDiv = document.createElement("div")
     newDiv.className = "col-md-4"
     newDiv.innerHTML = hiresTemplate(posts[j[0]], j[1])
@@ -278,16 +280,28 @@ function renderHires() {
   }
 }
 
+// _tutor
 function hiresTemplate(_hirePost, h) {
+  let _tutor = "";
+  tutors.forEach(tutor => {
+    if (parseInt(_hirePost.tutorIndex) === tutor.index) {
+      _tutor = tutor;
+    }
+  })
   return `
     <div class="card mb-4">
       <div class="card-body text-left p-4 position-relative">
         <h2 class="card-title fs-4 fw-bold mt-2">${_hirePost.title}</h2>
         <p class="text-muted">
-          ${subjects[_hirePost.subject]}             
+          <small>
+            <a href="https://alfajores-blockscout.celo-testnet.org/address/${_tutor.profile}/transactions">
+              ${_tutor.name}
+            </a>
+          </small>
+          offers ${subjects[_hirePost.subject]}
         </p>
         <p class="card-text">
-          ${h} Hours      
+        Hired for ${_hirePost.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD/${h} Hours      
         </p>
       </div>
     </div>

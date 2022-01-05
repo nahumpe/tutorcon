@@ -44,7 +44,9 @@ contract TutorCon {
         uint256 tutorIndex;
         string title;
         string description;
-        uint256 subject;
+        string subject;
+        string subject2;
+        string subject3;
         uint256 price;
     }
 
@@ -71,7 +73,9 @@ contract TutorCon {
         uint256 _tutorIndex,
         string memory _title,
         string memory _description,
-        uint256 _subject,
+        string memory _subject,
+        string memory _subject2,
+        string memory _subject3,
         uint256 _price
     ) public {
         posts[postsLength] = Post(
@@ -79,6 +83,8 @@ contract TutorCon {
             _title,
             _description,
             _subject,
+            _subject2,
+            _subject3,
             _price
         );
         postsLength++;
@@ -107,7 +113,9 @@ contract TutorCon {
             uint256,
             string memory,
             string memory,
-            uint256,
+            string memory,
+            string memory,
+            string memory,
             uint256
         )
     {
@@ -116,6 +124,8 @@ contract TutorCon {
             posts[_index].title,
             posts[_index].description,
             posts[_index].subject,
+            posts[_index].subject2,
+            posts[_index].subject3,
             posts[_index].price
         );
     }
